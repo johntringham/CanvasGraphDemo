@@ -31,16 +31,16 @@ class HousesAndWorkGraph extends Graph
     {
         // basic idea of this method is to create a bunch of nodes that are on a grid, but to push them about a bit (the wiggle factor)
         // using a grid as a starting point and then doing small wiggles means they don't get bunched up or overlap
-        let columnWidth = width/(columns + 0.5);
-        let rowHeight = height/(rows + 0.5);
+        let columnWidth = width/(columns + 1);
+        let rowHeight = height/(rows + 1);
 
         let nodes : IGraphNode[] = [];
 
         for(let x = 0; x < columns; x++){
             for(let y = 0; y < rows; y++){
 
-                let wx = Math.random() * wiggle;
-                let wy = Math.random() * wiggle;
+                let wx = Math.random() * wiggle + 0.5;
+                let wy = Math.random() * wiggle + 0.5;
 
                 let position = new Position(columnWidth * (x + wx), rowHeight * (y + wy));
 
@@ -57,6 +57,8 @@ class HousesAndWorkGraph extends Graph
         }
         
         super(nodes, []);
+        this.DoPrimsAlgorithm();
+        this.AddBonusEdges(10);
     }
 }
 
