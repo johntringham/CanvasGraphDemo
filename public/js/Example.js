@@ -28,6 +28,7 @@ class HousesAndWorkGraph extends Graph {
                 let wy = Math.random() * wiggle + 0.5;
                 let position = new Position(columnWidth * (x + wx), rowHeight * (y + wy));
                 // 50% of a house, 25% of work, 25% of nothing
+                // change this logic for whatever distribution of nodes you want
                 if (Math.random() < 0.5) {
                     let house = new House(position);
                     nodes.push(house);
@@ -38,13 +39,18 @@ class HousesAndWorkGraph extends Graph {
                 }
             }
         }
-        super(nodes, []);
-        this.DoPrimsAlgorithm();
-        this.AddBonusEdges(10);
+        super(nodes, [], width, height);
+        this.AddBareMinimumEdges();
+        this.AddExtraEdges(10);
+        this.DisperseNodes(0.05, 200000, 500, 500);
     }
 }
-var graph = new HousesAndWorkGraph(1000, 1000, 4, 4, 0.8, 0);
+var graph = new HousesAndWorkGraph(1000, 1000, 6, 6, 0.8, 0);
 var canvas = document.getElementById("graphCanvas");
 var graphDrawer = new GraphDrawer(canvas);
 graphDrawer.DrawGraph(graph);
+// setInterval(function () {
+//     graph.DisperseNodes(0.05, 200000, 500, 1);
+//     graphDrawer.DrawGraph(graph);
+// }, 100);
 //# sourceMappingURL=Example.js.map
