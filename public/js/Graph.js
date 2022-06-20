@@ -9,7 +9,7 @@ class Graph {
         this.height = height;
         this.AddBareMinimumEdges();
         this.AddExtraEdges(extraEdges);
-        this.DisperseNodes(0.05, 200000, 500, 500); // constants that fit by playing around - i'd leave these as-is
+        this.DisperseNodes(0.05, 200000, 500, 800); // constants that fit by playing around - i'd leave these as-is
         this.SetEdgeDistances();
         this.pathLookup = new GraphPathLookup(this);
     }

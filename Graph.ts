@@ -14,12 +14,12 @@ class Graph {
 
         this.AddBareMinimumEdges();
         this.AddExtraEdges(extraEdges);
-        this.DisperseNodes(0.05, 200000, 500, 500); // constants that fit by playing around - i'd leave these as-is
+        this.DisperseNodes(0.05, 200000, 500, 800); // constants that fit by playing around - i'd leave these as-is
         this.SetEdgeDistances();
         this.pathLookup = new GraphPathLookup(this);
     }
 
-    SetEdgeDistances() {
+    private SetEdgeDistances() {
         for (let edge of this.edges) {
             edge.length = edge.start.position.Distance(edge.end.position);
         }
@@ -59,7 +59,7 @@ class Graph {
         return connectedNodes;
     }
 
-    DisperseNodes(attractConstant: number, repellConstant: number, borderRepell: number, iterations: number) {
+    private DisperseNodes(attractConstant: number, repellConstant: number, borderRepell: number, iterations: number) {
         // this method just pushes the position of nodes around so that they're close to other connected
         // nodes, but not overlapping or weirdly positioned. don't worry about the implementation of it, it's hacked together
         // i'd recommend leaving this method alone 
@@ -133,7 +133,7 @@ class Graph {
         }
     }
 
-    AddBareMinimumEdges() {
+    private AddBareMinimumEdges() {
         // Prims algorithm
         // This adds edges so that theres the minimum amount of edges to make the graph fully connected
         // tso that there's always a path from one place to another. but it leads to boring maps, so call
@@ -168,7 +168,7 @@ class Graph {
         }
     }
 
-    AddExtraEdges(count: number) {
+    private AddExtraEdges(count: number) {
         // adds a random edges between unconnected nodes
         for (let i = 0; i < count; i++) {
             let randomNode = this.nodes[Math.floor(Math.random() * this.nodes.length)];
