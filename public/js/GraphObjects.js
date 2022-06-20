@@ -13,21 +13,35 @@ class Position {
 }
 class Edge {
     constructor(start, end) {
+        this.length = -1; // -1 when unset
         this.start = start;
         this.end = end;
     }
 }
 class Graph {
-    constructor(nodes, edges, width, height) {
+    constructor(nodes, width, height, extraEdges) {
         this.nodes = [];
-        this.edges = [];
+        this.edges = []; // private to discourage access, you should use GetEdge/HasEdge instead, as IEdge are implemented directionally (ie. with a 'start' and an 'end') which makes using them directly a bit annoying
         this.nodes = nodes;
-        this.edges = edges;
+        this.edges = [];
         this.width = width;
         this.height = height;
+        this.AddBareMinimumEdges();
+        this.AddExtraEdges(extraEdges);
+        this.DisperseNodes(0.05, 200000, 500, 500); // constants that fit by playing around
+        this.SetEdgeDistances();
+        this.pathLookup = new GraphPathLookup(this);
+    }
+    SetEdgeDistances() {
+        for (let edge of this.edges) {
+            edge.length = edge.start.position.Distance(edge.end.position);
+        }
     }
     HasEdge(a, b) {
         return this.GetEdge(a, b) != null;
+    }
+    AllEdges() {
+        return this.edges;
     }
     GetEdge(a, b) {
         for (let edge of this.edges) {
@@ -37,10 +51,24 @@ class Graph {
         }
         return null;
     }
+    // returns all nodes connected to node
+    GetConnectedNodes(node) {
+        let connectedNodes = [];
+        for (let edge of this.edges) {
+            if (edge.start == node) {
+                connectedNodes.push(edge.end);
+            }
+            if (edge.end == node) {
+                connectedNodes.push(edge.start);
+            }
+        }
+        return connectedNodes;
+    }
     DisperseNodes(attractConstant, repellConstant, borderRepell, iterations) {
         var _a, _b, _c;
         // this method just pushes the position of nodes around so that they're close to other connected
         // nodes, but not overlapping or weirdly positioned. don't worry about the implementation of it, it's hacked together
+        // i'd recommend leaving this method alone 
         for (let i = 0; i < iterations; i++) {
             let forceLookup = new Map();
             for (let edge of this.edges) {
@@ -98,9 +126,10 @@ class Graph {
         }
     }
     AddBareMinimumEdges() {
+        // prims algorithm
         // This adds edges so that theres the minimum amount of edges to make the graph fully connected
         // tso that there's always a path from one place to another. but it leads to boring maps, so call
-        // addBonusEdges as well.
+        // AddExtraEdges as well.
         let inTree = [];
         let notInTree = [...this.nodes]; // copying so we don't delete nodes accidentally
         // move first node into the tree
@@ -146,6 +175,94 @@ class Graph {
         }
     }
 }
+class GraphPathLookup {
+    constructor(graph) {
+        this.graph = graph;
+        this.nextStepLookup = new Map();
+        for (let node of graph.nodes) {
+            this.nextStepLookup.set(node, new Map());
+            this.SetFirstStep(node, node, node);
+            for (let connectedNode of graph.GetConnectedNodes(node)) {
+                // this.nextStepLookup.set([node, connectedNode], connectedNode);
+                this.SetFirstStep(node, connectedNode, connectedNode);
+            }
+        }
+        for (let start of graph.nodes) {
+            for (let end of graph.nodes) {
+                if (this.GetFirstStep(start, end) == undefined) {
+                    this.FindPath(start, end);
+                }
+            }
+        }
+    }
+    SetFirstStep(start, destination, firstStep) {
+        var _a;
+        (_a = this.nextStepLookup.get(start)) === null || _a === void 0 ? void 0 : _a.set(destination, firstStep);
+    }
+    GetFirstStep(start, destination) {
+        var _a;
+        return (_a = this.nextStepLookup.get(start)) === null || _a === void 0 ? void 0 : _a.get(destination);
+    }
+    GetPath(start, destination) {
+        let path = [];
+        let currentPlace = start;
+        while (currentPlace != destination && currentPlace != undefined) {
+            currentPlace = this.GetFirstStep(currentPlace, destination);
+            if (currentPlace != undefined) {
+                path.push(currentPlace);
+            }
+        }
+        return path;
+    }
+    FindPath(start, end) {
+        console.log("finding a path...");
+        // stolen psuedocode from wikipedia
+        let inf = 1000000;
+        let dist = new Map();
+        let prev = new Map();
+        let nodesToProcess = [];
+        for (var v of this.graph.nodes) {
+            dist.set(v, inf);
+            prev.set(v, null);
+            nodesToProcess.push(v);
+        }
+        dist.set(start, 0);
+        while (nodesToProcess.length > 0) {
+            let minDist = inf;
+            let closestUnprocessedNode = null;
+            for (let node of nodesToProcess) {
+                let distance = dist.get(node);
+                if (distance < minDist) {
+                    closestUnprocessedNode = node;
+                    minDist = distance;
+                }
+            }
+            let u = closestUnprocessedNode;
+            nodesToProcess.splice(nodesToProcess.indexOf(u), 1);
+            let neighbours = this.graph.GetConnectedNodes(u);
+            for (let neighbour of neighbours) {
+                let distToU = dist.get(u);
+                let alt = distToU + this.graph.GetEdge(u, neighbour).length; // not optimum but who cares
+                if (alt < dist.get(neighbour)) {
+                    dist.set(neighbour, alt);
+                    prev.set(neighbour, u);
+                }
+            }
+        }
+        let step = prev.get(end);
+        while (step != null) {
+            let previousStep = prev.get(step);
+            if (previousStep != null) {
+                // this.nextStepLookup.set([previousStep, end], step);
+                this.SetFirstStep(previousStep, end, step);
+            }
+            step = previousStep;
+        }
+        //   for(let element of prev){
+        //     this.nextStepLookup.set()
+        //   }
+    }
+}
 class GraphDrawer {
     constructor(canvas) {
         this.canvas = canvas;
@@ -159,20 +276,32 @@ class GraphDrawer {
         for (let node of graph.nodes) {
             console.log("drawing image");
             if (node.image.complete) { // image may not have loaded by the time we try to draw it...
-                ctx.drawImage(node.image, node.position.x - node.image.width / 2, node.position.y - node.image.width / 2);
+                this.DrawNode(node);
             }
             else {
+                let graphDrawer = this;
                 node.image.onload = function () {
-                    ctx.drawImage(node.image, node.position.x - node.image.width / 2, node.position.y - node.image.width / 2);
+                    graphDrawer.DrawNode(node);
                 };
             }
         }
-        for (let edge of graph.edges) {
+        for (let edge of graph.AllEdges()) {
             ctx.beginPath();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = "#888888";
             ctx.moveTo(edge.start.position.x, edge.start.position.y);
             ctx.lineTo(edge.end.position.x, edge.end.position.y);
             ctx.stroke();
         }
+    }
+    DrawNode(node) {
+        let xp = node.position.x - node.image.width / 2;
+        let yp = node.position.y - node.image.height / 2;
+        this.ctx.drawImage(node.image, xp, yp);
+        this.ctx.font = "12px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillStyle = "#0000ff";
+        this.ctx.fillText(node.label, node.position.x, yp);
     }
 }
 const clamp = (num, min, max) => Math.min(Math.max(num, min), max);

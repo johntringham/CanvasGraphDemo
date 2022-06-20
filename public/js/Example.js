@@ -1,8 +1,9 @@
 "use strict";
+var count = 0;
 class House {
     constructor(position) {
         this.position = position;
-        this.label = "house";
+        this.label = "house " + (count++).toString();
         this.image = new Image();
         this.image.src = "./images/house.png";
     }
@@ -10,18 +11,19 @@ class House {
 class Work {
     constructor(position) {
         this.position = position;
-        this.label = "work";
+        this.label = "work " + (count++).toString();
         this.image = new Image();
         this.image.src = "./images/work.png";
     }
 }
 class HousesAndWorkGraph extends Graph {
-    constructor(width, height, rows, columns, wiggle, connectedness) {
+    constructor(width, height, rows, columns) {
         // basic idea of this method is to create a bunch of nodes that are on a grid, but to push them about a bit (the wiggle factor)
-        // using a grid as a starting point and then doing small wiggles means they don't get bunched up or overlap
+        // using a grid as a starting point and then doing small wiggles means they don't get too bunched up or overlap
         let columnWidth = width / (columns + 1);
         let rowHeight = height / (rows + 1);
         let nodes = [];
+        let wiggle = 0.8;
         for (let x = 0; x < columns; x++) {
             for (let y = 0; y < rows; y++) {
                 let wx = Math.random() * wiggle + 0.5;
@@ -39,18 +41,11 @@ class HousesAndWorkGraph extends Graph {
                 }
             }
         }
-        super(nodes, [], width, height);
-        this.AddBareMinimumEdges();
-        this.AddExtraEdges(10);
-        this.DisperseNodes(0.05, 200000, 500, 500);
+        super(nodes, width, height, 10);
     }
 }
-var graph = new HousesAndWorkGraph(1000, 1000, 6, 6, 0.8, 0);
+var graph = new HousesAndWorkGraph(1000, 1000, 6, 6);
 var canvas = document.getElementById("graphCanvas");
 var graphDrawer = new GraphDrawer(canvas);
 graphDrawer.DrawGraph(graph);
-// setInterval(function () {
-//     graph.DisperseNodes(0.05, 200000, 500, 1);
-//     graphDrawer.DrawGraph(graph);
-// }, 100);
 //# sourceMappingURL=Example.js.map

@@ -19,14 +19,17 @@ interface IGraphNode {
     label : string;
 }
 
+// NOTE THAT THESE ARE DIRECTIONAL!
 interface IEdge {
     start : IGraphNode;
     end : IGraphNode;
+    length : number;
 }
 
 class Edge implements IEdge{
     start: IGraphNode;
     end: IGraphNode;
+    length : number = -1; // -1 when unset
     constructor(start: IGraphNode, end:IGraphNode){
         this.start = start;
         this.end = end;
@@ -35,19 +38,36 @@ class Edge implements IEdge{
 
 class Graph {
     nodes : IGraphNode[] = [];
-    edges : IEdge[] = [];
+    private edges : IEdge[] = []; // private to discourage access, you should use GetEdge/HasEdge instead, as IEdge are implemented directionally (ie. with a 'start' and an 'end') which makes using them directly a bit annoying
     width : number;
     height : number;
+    pathLookup : GraphPathLookup;
 
-    constructor(nodes : IGraphNode[], edges : IEdge[], width : number, height : number){
+    constructor(nodes : IGraphNode[], width : number, height : number, extraEdges : number){
         this.nodes = nodes;
-        this.edges = edges;
+        this.edges = [];
         this.width = width;
         this.height = height;
+
+        this.AddBareMinimumEdges();
+        this.AddExtraEdges(extraEdges);
+        this.DisperseNodes(0.05, 200000, 500, 500); // constants that fit by playing around
+        this.SetEdgeDistances();
+        this.pathLookup = new GraphPathLookup(this);
+    }
+
+    SetEdgeDistances(){
+        for(let edge of this.edges){
+            edge.length = edge.start.position.Distance(edge.end.position);
+        }
     }
 
     HasEdge( a : IGraphNode, b : IGraphNode) : boolean {
         return this.GetEdge(a, b) != null;
+    }
+
+    AllEdges() : IEdge[] {
+        return this.edges;
     }
 
     GetEdge( a : IGraphNode, b : IGraphNode) : IEdge | null {
@@ -60,9 +80,26 @@ class Graph {
         return null;
     }
 
+    // returns all nodes connected to node
+    GetConnectedNodes(node : IGraphNode) : IGraphNode[]{
+        let connectedNodes :IGraphNode[] = [];
+
+        for(let edge of this.edges){
+            if(edge.start == node){
+                connectedNodes.push(edge.end);
+            }
+            if(edge.end == node){
+                connectedNodes.push(edge.start);
+            }
+        }
+
+        return connectedNodes;
+    }
+
     DisperseNodes(attractConstant : number, repellConstant : number, borderRepell: number, iterations : number){
         // this method just pushes the position of nodes around so that they're close to other connected
         // nodes, but not overlapping or weirdly positioned. don't worry about the implementation of it, it's hacked together
+        // i'd recommend leaving this method alone 
         for(let i = 0; i<iterations; i++){
             let forceLookup : Map<IGraphNode, [x : number, y:number]> = new  Map<IGraphNode, [x : number, y:number]>();
             for(let edge of this.edges){
@@ -134,9 +171,10 @@ class Graph {
     }
 
     AddBareMinimumEdges(){
+        // prims algorithm
         // This adds edges so that theres the minimum amount of edges to make the graph fully connected
         // tso that there's always a path from one place to another. but it leads to boring maps, so call
-        // addBonusEdges as well.
+        // AddExtraEdges as well.
         let inTree : IGraphNode[] = [];
         let notInTree : IGraphNode[] = [...this.nodes]; // copying so we don't delete nodes accidentally
 
@@ -163,7 +201,7 @@ class Graph {
                 inTree.push(bestPair[1]);
                 this.edges.push(new Edge(bestPair[0], bestPair[1]));
             }
-         }
+        }
     }
 
     AddExtraEdges(count : number){
@@ -188,6 +226,119 @@ class Graph {
     }
 }
 
+class GraphPathLookup {
+    graph : Graph;
+
+    // nextStepLookup : Map<[IGraphNode, IGraphNode], IGraphNode>;
+    private nextStepLookup : Map<IGraphNode, Map<IGraphNode, IGraphNode>>;
+
+    constructor(graph : Graph){
+        this.graph = graph;
+
+        this.nextStepLookup = new Map<IGraphNode, Map<IGraphNode, IGraphNode>>();
+
+        for(let node of graph.nodes){
+            this.nextStepLookup.set(node, new Map<IGraphNode, IGraphNode>());
+            this.SetFirstStep(node, node, node);
+
+            for(let connectedNode of graph.GetConnectedNodes(node)){
+                // this.nextStepLookup.set([node, connectedNode], connectedNode);
+                this.SetFirstStep(node, connectedNode, connectedNode);
+            }
+        }
+
+        for(let start of graph.nodes){
+            for(let end of graph.nodes){
+                if(this.GetFirstStep(start,end) == undefined)
+                {
+                    this.FindPath(start, end);
+                }
+            }
+        }
+    }
+
+    SetFirstStep(start : IGraphNode, destination: IGraphNode, firstStep: IGraphNode){
+        this.nextStepLookup.get(start)?.set(destination, firstStep);
+    }
+
+    GetFirstStep(start : IGraphNode, destination: IGraphNode) : IGraphNode | undefined{
+        return this.nextStepLookup.get(start)?.get(destination);
+    }
+
+    GetPath(start: IGraphNode, destination: IGraphNode) : IGraphNode[]{
+
+        let path :IGraphNode[] = [];
+        let currentPlace : IGraphNode | undefined = start;
+        while(currentPlace != destination && currentPlace != undefined)
+        {
+            currentPlace = this.GetFirstStep(currentPlace, destination);
+            if(currentPlace != undefined){
+                path.push(currentPlace);
+            }
+        }
+
+        return path;
+    }
+
+    private FindPath(start: IGraphNode, end : IGraphNode){
+        console.log("finding a path...");
+      // stolen psuedocode from wikipedia
+        let inf = 1000000;
+
+        let dist = new Map<IGraphNode, number>();
+        let prev = new Map<IGraphNode, IGraphNode | null>();
+        let nodesToProcess : IGraphNode[] = [];
+        for(var v of this.graph.nodes){
+            dist.set(v, inf);
+            prev.set(v, null);
+            nodesToProcess.push(v);
+        }
+
+        dist.set(start, 0);
+      
+      while (nodesToProcess.length > 0){
+        let minDist = inf;
+        let closestUnprocessedNode : IGraphNode | null = null;
+        for(let node of nodesToProcess){
+            let distance = dist.get(node)!;
+            if(distance < minDist){
+                closestUnprocessedNode = node;
+                minDist = distance!;
+            }
+        }
+
+          let u = closestUnprocessedNode!;
+          nodesToProcess.splice(nodesToProcess.indexOf(u), 1); 
+          
+          let neighbours = this.graph.GetConnectedNodes(u);
+          for (let neighbour of neighbours){
+            let distToU = dist.get(u)!;
+            let alt = distToU + this.graph.GetEdge(u, neighbour)!.length; // not optimum but who cares
+            if(alt < dist.get(neighbour)!){
+                dist.set(neighbour, alt);
+                prev.set(neighbour, u);
+            }
+          }
+      }
+
+      let step = prev.get(end);
+      while(step != null){
+        let previousStep = prev.get(step);
+        if(previousStep != null){
+            // this.nextStepLookup.set([previousStep, end], step);
+            this.SetFirstStep(previousStep, end, step);
+        }
+
+        step = previousStep;
+      }
+
+    //   for(let element of prev){
+
+    //     this.nextStepLookup.set()
+    //   }
+    }
+}
+
 class GraphDrawer
 {
     canvas : HTMLCanvasElement;
@@ -206,21 +357,35 @@ class GraphDrawer
         for (let node of graph.nodes){
             console.log("drawing image");
             if(node.image.complete){ // image may not have loaded by the time we try to draw it...
-                
-                ctx.drawImage(node.image, node.position.x - node.image.width / 2, node.position.y - node.image.width / 2);
+                this.DrawNode(node);
             }else{
+                let graphDrawer = this;
                 node.image.onload = function (){
-                    ctx.drawImage(node.image, node.position.x - node.image.width / 2, node.position.y - node.image.width / 2);
+                    graphDrawer.DrawNode(node);
                 }
             }
         }
 
-        for(let edge of graph.edges){
+        for(let edge of graph.AllEdges()){
             ctx.beginPath();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = "#888888";
+
             ctx.moveTo(edge.start.position.x, edge.start.position.y);
             ctx.lineTo(edge.end.position.x, edge.end.position.y);
             ctx.stroke();
         }
+    }
+
+    DrawNode(node : IGraphNode){
+        let xp = node.position.x - node.image.width / 2;
+        let yp = node.position.y - node.image.height / 2;
+        this.ctx.drawImage(node.image, xp, yp);
+        
+        this.ctx.font = "12px Arial";
+        this.ctx.textAlign = "center";
+        this.ctx.fillStyle = "#0000ff";
+        this.ctx.fillText(node.label, node.position.x, yp);
     }
 }
 
