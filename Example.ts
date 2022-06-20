@@ -73,3 +73,11 @@ var graphDrawer = new GraphDrawer(canvas);
 graphDrawer.DrawGraph(graph);
 
 
+let start = graph.nodes[0];
+let end = graph.nodes[graph.nodes.length - 1];
+
+let path = graph.pathLookup.GetPathStops(start, end);
+console.log("Shortest path from " + start.label + " to " + end.label + " is: ");
+for(let stop of path){
+    console.log(" -> " + stop.label);
+}
